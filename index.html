@@ -583,7 +583,7 @@ const onVac=d=>S.vacations.find(v=>d>=v.from&&d<=v.to);
 const KEY='qab.v1';
 const TPL_REMIND='سلام {نام} عزیز، یادآوری جلسه‌ی {روز} ساعت {ساعت}. منتظرتان هستم.';
 const TPL_DEBT='سلام {نام} عزیز، مانده‌ی حساب جلسات تا امروز {مبلغ} تومان است ({تعداد} جلسه). هر زمان امکانش بود تسویه کنید. ممنونم.';
-function blank(){return{v:1,demo:false,settings:{notify:false,lead:5,name:'',fee:1000000,len:60,days:[0,1,2,3,4,5],start:'10:00',end:'21:00',holidays:true,absentCharged:true,pin:null,theme:'auto',tplRemind:TPL_REMIND,tplDebt:TPL_DEBT,lockAfter:30},clients:[],sessions:{},skips:{},waitlist:[],vacations:[],hol:{}}}
+function blank(){return{v:1,demo:false,places:[{id:'p1',name:'مطب'},{id:'p2',name:'کلینیک'}],settings:{notify:false,lead:5,name:'',fee:1000000,len:60,days:[0,1,2,3,4,5],start:'10:00',end:'21:00',holidays:true,absentCharged:true,pin:null,theme:'auto',tplRemind:TPL_REMIND,tplDebt:TPL_DEBT,lockAfter:30},clients:[],sessions:{},skips:{},waitlist:[],vacations:[],hol:{}}}
 let S=null;
 const UI={srcMode:'all',tab:'today',day:0,calM:0,calMode:'free',repView:'period',anim:true,rep:{mode:'month',anchor:0},flow:'q',cf:'active',cat:null,cli:{mode:'month',anchor:0,limit:20},undo:null};
 let ver=0,genMax=0;
@@ -692,7 +692,7 @@ function demo(){
     ['فرهاد ع.',null,'inperson',1100000,330,[[5,'17:00']],'بیمارستان',20,{term:1,after:36}],
     ['دنیا ص.',null,'online',1000000,100,[[1,'12:00']],'پیج ایکس',0,{drop:'عدم تناسب',after:5}],
   ];
-  defs.forEach((x,i)=>{const[name,partner,type,fee,ago,slots,source,prior,o]=x;s.clients.push({id:'c'+i,name,partner,type,fee,start:t-ago,slots:slots.map(([wd,time])=>({wd,time})),past:[],source,prior,status:'active',hue:(i*53+18)%360,phone:'',note:'',pauses:[],_o:o})});
+  defs.forEach((x,i)=>{const[name,partner,type,fee,ago,slots,source,prior,o]=x;s.clients.push({id:'c'+i,name,partner,type,fee,start:t-ago,slots:slots.map(([wd,time])=>({wd,time})),past:[],source,prior,status:'active',hue:(i*53+18)%360,phone:'',note:'',pauses:[],place:[3,5,9,11].includes(i)?'p2':'p1',_o:o})});
   ensure(t+42);
   const NOTES=['تم جدایی و بازگشت؛ رؤیای خانه‌ی قدیمی','سکوت طولانی در شروع جلسه','اولین اشاره به پدر','مقاومت حول ساعت جلسه','خشم نسبت به وقفه‌ی تابستان','گفت‌وگو درباره‌ی هزینه‌ی جلسات','رؤیای آب و غرق شدن','احساس دیده نشدن در محل کار'];
   const map={};Object.values(s.sessions).forEach(x=>(map[x.cid]||(map[x.cid]=[])).push(x));
@@ -786,13 +786,24 @@ function donut(parts,total,sel){
 }
 function delta(cur,prev,o={}){if(prev==null)return'';const dd=cur-prev;if(!prev&&!cur)return'<span class="delta flat">بدون تغییر</span>';if(dd===0)return'<span class="delta flat">= دوره‌ی قبل</span>';const up=dd>0;const txt=o.pt?fa(Math.abs(dd))+' واحد درصد':o.money?short(Math.abs(dd)):fa(Math.abs(dd));return`<span class="delta ${up?'up':'down'} ${o.bad?'bad':''}">${up?'▲':'▼'} ${txt}</span>`}
 
+
+const PL=id=>S.places.find(p=>p.id===id);
+const placeOf=s=>s.place||(C(s.cid)&&C(s.cid).place)||S.places[0].id;
+const placeName=id=>(PL(id)||S.places[0]||{name:'—'}).name;
+const multiPlace=()=>S.places.length>1;
+function placeStats(a,b){const r={};for(const p of S.places)r[p.id]={p,held:0,absent:0,cancel:0,income:0,owed:0,clients:new Set(),charged:0,paidN:0};
+  for(const s of all()){if(s.d<a||s.d>b)continue;const x=r[placeOf(s)]||r[S.places[0].id];if(!x)continue;
+    if(s.status==='attended'){x.held++;x.clients.add(s.cid)}else if(s.status==='absent')x.absent++;else if(s.status==='canceled'&&s.by!=='me')x.cancel++;
+    if(charged(s)){x.charged++;if(s.paid){x.paidN++;x.income+=s.fee||0}else x.owed+=s.fee||0}}
+  return Object.values(r)}
+
 /* ---------- views ---------- */
 const VIEWS={};
 function statusChip(s){const k=cat(s),t=todayD();let txt=CAT[k];if(k==='sched')txt=(s.d<t||(s.d===t&&toMin(s.time)+S.settings.len<=nowMin()))?'ثبت‌نشده':'در پیش';if(k==='absent')txt='غیبت'+(s.charged!==false?' · با هزینه':'');if(k==='paid')txt='پرداخت شد';if(k==='unpaid')txt='پرداخت نشده';if(k==='cancel')txt='کنسل';return`<span class="chip ${k}">${txt}</span>`}
 function sessCard(s){
   const c=C(s.cid),bal=balance(s.cid),L=S.settings.len,k=cat(s);
   const nm=nowMin(),m0=toMin(s.time),live=(s.d===todayD()&&s.status!=='canceled'&&nm>=m0&&nm<m0+L)?Math.max(3,Math.round((nm-m0)*100/L)):0;
-  const meta=[k==='mine'||k==='cancel'?'':'جلسه '+fa(sessNo(s)),TYPES[c.type].t];
+  const meta=[k==='mine'||k==='cancel'?'':'جلسه '+fa(sessNo(s)),TYPES[c.type].t,multiPlace()?placeName(placeOf(s)):''];
   if(bal.n)meta.push(`<span class="debt">بدهی ${fa(bal.n)} جلسه</span>`);
   return`<div class="sess c-${k} ${live?'live':''}" data-sid="${s.id}">
     <div class="sess-under"><span class="u-r">${ic('x',18)} غیبت</span><span class="u-l">حاضر · پرداخت ${ic('check',18)}</span></div>
@@ -912,6 +923,11 @@ VIEWS.period=()=>{
   h+=`<div class="sec-head sec"><span class="h2">روزبه‌روز</span><span class="muted" style="font-size:12px">ارتفاع = تعداد جلسه</span></div><div class="panel"><div class="bars">${days.map((d,i)=>{const x=st.byDay[d]||{};const seg=['paid','unpaid','absent','cancel','sched'].map(k=>x[k]?`<i style="height:${(x[k]/mx*100).toFixed(1)}%;background:var(--${k})"></i>`:'').join('');const lab=R.mode==='week'?WDS[pwd(d)]:(J(d).jd%5===1?fa(J(d).jd):'');return`<div class="bcol ${d===t?'today':''}" title="${fmtD(d)}"><div class="bstack">${seg}</div><span>${lab}</span></div>`}).join('')}</div>
    <div class="row wrap" style="gap:12px;margin-top:10px;font-size:12px;color:var(--muted)">${['paid','unpaid','absent','cancel','sched'].map(k=>`<span class="row" style="gap:5px"><span class="dot ${k}"></span>${k==='sched'?'ثبت‌نشده / آینده':CAT[k]}</span>`).join('')}</div></div>`;
   // per client
+  if(multiPlace()){const ps=placeStats(a,b),pp=placeStats(pa,pb),mxI=Math.max(1,...ps.map(x=>x.income+x.owed)),totI=ps.reduce((q,x)=>q+x.income,0);
+    h+=`<div class="sec-head sec"><span class="h2">به تفکیک محل کار</span></div><div class="stack">${ps.map((x,i)=>{const base=x.held+x.absent+x.cancel,prev=pp[i];return`<div class="srccard"><div class="hd"><span class="sw3" style="background:var(--c${i%7+1})"></span><b>${esc(x.p.name)}</b><span class="spacer"></span><span class="chip">${fa(pct(x.income,totI))}٪ درآمد</span></div>
+      <div class="sbar"><i style="width:${x.income/mxI*100}%;background:var(--paid)"></i><i style="width:${x.owed/mxI*100}%;background:var(--unpaid)"></i></div>
+      <div class="sstats"><div><b>${fa(x.held)}</b><span>جلسه</span></div><div><b>${fa(x.clients.size)}</b><span>مراجع</span></div><div><b>${fa(pct(x.held,base))}٪</b><span>حضور</span></div><div><b>${short(x.income)}</b><span>دریافتی</span></div></div>
+      <div class="row wrap" style="gap:12px;font-size:12.5px;color:var(--muted)"><span>غیبت ${fa(x.absent)}</span><span>کنسلی ${fa(x.cancel)}</span>${x.owed?`<span style="color:var(--unpaid)">پرداخت‌نشده ${short(x.owed)}</span>`:''}<span>${delta(x.income,prev.income,{money:1})}</span></div></div>`}).join('')}</div>`}
   const rows=Object.entries(st.byClient).filter(([cid])=>C(cid)).sort((x,y)=>y[1].owed-x[1].owed||y[1].attended-x[1].attended);
   if(rows.length)h+=`<div class="sec-head sec"><span class="h2">به تفکیک مراجع</span></div><div class="tablewrap"><table><thead><tr><th>مراجع</th><th>حاضر</th><th>غیبت</th><th>کنسل</th><th>پرداخت‌نشده</th></tr></thead><tbody>${rows.map(([cid,x])=>`<tr data-a="openClient" data-id="${cid}"><td class="nm">${esc(cname(C(cid)))}</td><td>${fa(x.attended)}</td><td>${x.absent?`<span style="color:var(--absent)">${fa(x.absent)}</span>`:'۰'}</td><td>${fa(x.cancel)}</td><td>${x.owed?`<span class="amt owe">${short(x.owed)}</span>`:'—'}</td></tr>`).join('')}</tbody></table></div>`;
   // all-time debts
@@ -1110,6 +1126,9 @@ VIEWS.settings=()=>{
   <div class="field"><label for="s-fee">تعرفه‌ی پیش‌فرض مراجع جدید</label><div class="inrow"><input id="s-fee" inputmode="numeric" data-c="setFee" value="${money(st.fee)}"><span class="unit">تومان</span></div></div>
   <button class="toggle ${st.absentCharged?'on':''}" data-a="tgl" data-k="absentCharged"><span>غیبت بدون اطلاع، به‌طور پیش‌فرض هزینه دارد<br><span class="muted" style="font-size:12.5px">برای هر جلسه جداگانه قابل تغییر است</span></span><span class="sw"></span></button>
   <button class="toggle ${st.holidays?'on':''}" data-a="tgl" data-k="holidays"><span>نمایش تعطیلات رسمی<br><span class="muted" style="font-size:12.5px">مناسبت‌های قمری ممکن است یک روز جابه‌جا باشند</span></span><span class="sw"></span></button>
+  <div class="sec-head sec" style="margin-bottom:0"><span class="h2">محل‌های کار</span></div>
+  <div class="list">${S.places.map(p=>`<div class="item"><input class="input" style="flex:1" id="pl-${p.id}" data-c="renamePlace" data-id="${p.id}" value="${esc(p.name)}" aria-label="نام محل">${S.places.length>1?`<button class="iconbtn" style="width:38px;height:38px;box-shadow:none;background:var(--absent-soft);color:var(--absent)" data-a="delPlace" data-id="${p.id}" aria-label="حذف محل">${ic('trash',18)}</button>`:''}</div>`).join('')}</div>
+  <div class="inrow"><input class="input" id="pl-new" placeholder="محل جدید، مثلاً بیمارستان" style="flex:1"><button class="btn sm" data-a="addPlace">${ic('plus',16)} افزودن</button></div>
   <div class="sec-head sec" style="margin-bottom:0"><span class="h2">مرخصی‌های من</span><button class="btn sm" data-a="newVac">${ic('plus',16)} افزودن</button></div>
   <div class="note-box">جلسه‌های روزهای مرخصی خودکار «کنسل از طرف من» می‌شوند و در آمار غیبت مراجع حساب نمی‌شوند. همین وقفه‌ها مبنای الگوی «غیبت پس از جدایی» در گزارش‌اند.</div>
   ${S.vacations.length?`<div class="list">${S.vacations.slice().sort((a,b)=>b.from-a.from).map(v=>`<div class="item"><span class="main"><span class="t">${esc(v.label||'مرخصی')}</span><span class="m">${fmtD(v.from,{y:1})} تا ${fmtD(v.to,{y:1})}</span></span><button class="iconbtn" style="width:38px;height:38px;box-shadow:none;background:var(--absent-soft);color:var(--absent)" data-a="delVac" data-id="${v.id}" aria-label="حذف">${ic('trash',18)}</button></div>`).join('')}</div>`:''}
@@ -1163,6 +1182,7 @@ function shSession(id){
   if(s.status==='absent')h+=`<button class="toggle ${s.charged!==false?'on':''}" data-a="tglCharged" data-id="${id}"><span>هزینه‌ی این جلسه حساب شود</span><span class="sw"></span></button>`;
   if(s.status==='canceled')h+=`<div><div class="lbl" style="margin-bottom:6px">کنسل از طرف</div><div class="seg"><button class="${s.by!=='me'?'on':''}" data-a="setBy" data-id="${id}" data-v="client">مراجع</button><button class="${s.by==='me'?'on':''}" data-a="setBy" data-id="${id}" data-v="me">من</button></div></div>`;
   if(charged(s))h+=`<button class="paybtn ${s.paid?'on':''}" data-a="tglPaid" data-id="${id}">${s.paid?ic('check',20)+' پرداخت شد':ic('wallet',20)+' پرداخت نشده · بزنید تا ثبت شود'}</button>`;
+  if(multiPlace())h+=`<div class="field"><label>محل این جلسه</label><div class="chips">${S.places.map(p=>`<button class="pick ${placeOf(s)===p.id?'on':''}" data-a="sessPlace" data-id="${id}" data-v="${p.id}">${esc(p.name)}</button>`).join('')}</div></div>`;
   h+=`<div class="field"><label for="f-fee">هزینه‌ی این جلسه</label><div class="inrow"><input id="f-fee" inputmode="numeric" data-c="sessFee" data-id="${id}" value="${money(s.fee)}"><span class="unit">تومان</span></div></div>
   <div class="field"><label for="f-note">یادداشت جلسه</label><textarea id="f-note" data-i="sessNote" data-id="${id}" placeholder="تم، رؤیا، انتقال و انتقال متقابل، نکته برای سوپرویژن…">${esc(s.note||'')}</textarea></div>
   <button class="toggle ${s.imp?'on':''}" data-a="tglImp" data-id="${id}"><span style="color:var(--unpaid)">${ic('star',18)}</span><span>جلسه‌ی مهم<br><span class="muted" style="font-size:12.5px">برای مرور در سوپرویژن</span></span><span class="sw"></span></button>
@@ -1178,7 +1198,7 @@ function shClient(cid){
   const c=C(cid);if(!c)return'';const t=todayD(),bal=balance(cid),R=UI.cli;
   let a,b,label;if(R.mode==='all'){a=c.start;b=Math.max(t,c.end||t);label='از شروع درمان'}else{[a,b]=range(R.mode,R.anchor);label=rangeLabel(R.mode,a,b)}
   const st=stats(a,b,s=>s.cid===cid),bp=breakPattern(cid),sk=streak(cid),ss=byClient()[cid]||[];
-  let h=`<div class="chead">${avatar(c,'lg')}<div style="min-width:0"><div class="h1">${esc(cname(c))}</div><div class="row wrap" style="gap:6px;margin-top:4px"><span class="chip accent">${ic(TYPES[c.type].i,14)} ${TYPES[c.type].t}</span><span class="chip ${c.status==='active'?'paid':c.status==='dropped'?'absent':'cancel'}">${STATUS[c.status]}</span>${c.source?`<span class="chip">${esc(c.source)}</span>`:''}</div></div></div>
+  let h=`<div class="chead">${avatar(c,'lg')}<div style="min-width:0"><div class="h1">${esc(cname(c))}</div><div class="row wrap" style="gap:6px;margin-top:4px"><span class="chip accent">${ic(TYPES[c.type].i,14)} ${TYPES[c.type].t}</span><span class="chip ${c.status==='active'?'paid':c.status==='dropped'?'absent':'cancel'}">${STATUS[c.status]}</span>${c.source?`<span class="chip">${esc(c.source)}</span>`:''}${multiPlace()?`<span class="chip">${esc(placeName(c.place))}</span>`:''}</div></div></div>
   <div class="muted" style="font-size:13.5px">${slotText(c)} · ${fa(heldCount(cid))} جلسه تا امروز · شروع ${fmtD(c.start,{y:1})}${c.end?' · خروج '+fmtD(c.end,{y:1}):''}</div>
   ${c.phone?`<div class="row" style="margin-top:6px;font-size:14px">${ic('phone',16)}<span class="num" dir="ltr" style="user-select:all">${esc(c.phone)}</span><button class="linkbtn" data-a="copy" data-t="${esc(c.phone)}">کپی</button></div>`:''}
   <div class="actions"><button class="act" data-a="editClient" data-id="${cid}">${ic('edit')}ویرایش</button><button class="act" data-a="addSession" data-cid="${cid}">${ic('plus')}جلسه‌ی تکی</button>${c.status==='active'?`<button class="act danger" data-a="dropClient" data-id="${cid}">${ic('door')}خروج / توقف</button>`:`<button class="act" data-a="resume" data-id="${cid}">${ic('play')}بازگشت به درمان</button>`}</div>
@@ -1216,6 +1236,7 @@ function shClientForm(cid,pre={}){
   <div class="field"><label for="f-cfee">تعرفه‌ی هر جلسه</label><div class="inrow"><input id="f-cfee" inputmode="numeric" value="${money(v.fee)}"><span class="unit">تومان</span></div></div>
   <div class="field"><label>وقت ثابت هفتگی</label><div id="slots" class="stack" style="gap:6px">${(v.slots.length?v.slots:[{wd:pwd(t),time:''}]).map(slotRow).join('')}</div><button class="linkbtn" style="align-self:flex-start" data-a="addSlotRow">+ وقت دیگر در هفته</button></div>
   <div class="field"><label>تاریخ شروع</label>${dateFields('fs',v.start)}</div>
+  <div class="field"><label>محل کار</label><div class="chips" id="f-place">${S.places.map((p,i)=>`<button class="pick ${(v.place||S.places[0].id)===p.id?'on':''}" data-a="pickOne" data-v="${p.id}">${esc(p.name)}</button>`).join('')}</div></div>
   <div class="field"><label>منبع ارجاع</label><div class="chips" id="f-src">${SOURCES.map(s=>`<button class="pick ${(v.source===s||(s==='سایر'&&srcIn))?'on':''}" data-a="pickSrc" data-v="${s}">${s}</button>`).join('')}</div><input id="f-srcx" placeholder="منبع دیگر" value="${srcIn?esc(v.source):''}" ${srcIn?'':'hidden'}></div>
   <div class="field"><label for="f-prior">تعداد جلسه‌های قبل از شروع ثبت در اپ</label><input id="f-prior" inputmode="numeric" value="${fa(v.prior||0)}"></div>
   <div class="field"><label for="f-cnote">یادداشت پرونده</label><textarea id="f-cnote" placeholder="نکته‌ی کلی، قرارداد درمانی، …">${esc(v.note||'')}</textarea></div>
@@ -1303,6 +1324,12 @@ function icsText(){
 
 /* ---------- actions ---------- */
 const A={};
+
+A.pickOne=(d,el)=>el.parentNode.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===el));
+A.sessPlace=d=>{S.sessions[d.id].place=d.v;commit()};
+A.addPlace=()=>{const n=$('#pl-new').value.trim();if(!n)return toast('نام محل را بنویسید');S.places.push({id:'p'+uid(),name:n});commit('«'+esc(n)+'» اضافه شد')};
+A.delPlace=d=>{const p=PL(d.id),to=S.places.find(x=>x.id!==d.id);S.places=S.places.filter(x=>x.id!==d.id);S.clients.forEach(c=>{if(c.place===d.id)c.place=to.id});Object.values(S.sessions).forEach(s=>{if(s.place===d.id)s.place=to.id});commit(`«${esc(p.name)}» حذف شد؛ مراجعانش به «${esc(to.name)}» منتقل شدند`)};
+
 A.srcMode=d=>{UI.srcMode=d.v;UI.anim=true;render()};
 A.goSrc=()=>{UI.repView='src';UI.anim=true;render();window.scrollTo(0,0)};
 
@@ -1315,8 +1342,13 @@ A.tglNotify=async()=>{const st=S.settings;if(st.notify){st.notify=false;commit('
   if(notifSupported()){try{const r=Notification.permission==='default'?await Notification.requestPermission():Notification.permission;if(r!=='granted')msg='یادآوری داخل اپ روشن شد؛ اجازه‌ی اعلان داده نشد'}catch(e){}}else msg='یادآوری داخل اپ روشن شد؛ برای اعلان سیستمی، اپ را روی صفحه‌ی اصلی نصب کنید';
   commit(msg)};
 A.testNotify=()=>{const s=all().find(x=>x.d>=todayD()&&x.status==='scheduled');if(s)fireReminder(s);else toast('جلسه‌ی پیش رویی نیست')};
-A.exportICS=()=>{const r=icsText();if(!r.n)return toast('جلسه‌ی ثابتی برای افزودن نیست');
-  try{const url=URL.createObjectURL(new Blob([r.text],{type:'text/calendar;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener';if(!/iPhone|iPad|iPod/.test(navigator.userAgent))a.download='qab-sessions.ics';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);toast(`${fa(r.n)} رویداد آماده شد · در صفحه‌ی باز شده «Add All» را بزنید`)}catch(e){toast('ساخت فایل تقویم ممکن نشد')}};
+A.exportICS=async()=>{const r=icsText();if(!r.n)return toast('جلسه‌ی ثابتی برای افزودن نیست');
+  const sw=('serviceWorker' in navigator)&&navigator.serviceWorker.controller&&('caches' in window);
+  if(sw){try{const c=await caches.open('qab-ics');await c.put(new URL('calendar.ics',location.href).href,new Response(r.text,{headers:{'Content-Type':'text/calendar; charset=utf-8','Content-Disposition':'inline; filename="qab.ics"','Cache-Control':'no-store'}}));
+    toast(`${fa(r.n)} رویداد آماده است · در صفحه‌ای که باز می‌شود «Add All» را بزنید`);setTimeout(()=>{location.assign('calendar.ics?t='+Date.now())},400);return}catch(e){}}
+  const f=new File([r.text],'qab.ics',{type:'text/calendar'});
+  try{if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:'جلسات قاب'});return}}catch(e){if(e&&e.name==='AbortError')return}
+  try{const url=URL.createObjectURL(f);const a=document.createElement('a');a.href=url;a.download='qab.ics';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);toast('فایل qab.ics ذخیره شد؛ بازش کنید و «Add All» را بزنید')}catch(e){toast('ساخت فایل تقویم ممکن نشد')}};
 
 A.openDay=d=>openSheet(shDay,+d.d);
 A.book=d=>openSheet(shBook,+d.d,d.t);
@@ -1365,7 +1397,7 @@ A.saveClient=()=>{
   const type=$('#f-type .on')?.dataset.v||'inperson',t=todayD();
   const slots=[...document.querySelectorAll('#slots .slotrow')].map(r=>({wd:+r.querySelector('.sl-wd').value,time:r.querySelector('.sl-t').value})).filter(x=>x.time);
   const srcB=$('#f-src .on')?.dataset.v||'';const source=srcB==='سایر'?($('#f-srcx').value.trim()||'سایر'):srcB;
-  const data={name,partner:type==='couple'?$('#f-partner').value.trim():'',type,phone:$('#f-phone').value.trim(),fee:num($('#f-cfee').value),start:readDate('fs'),source,prior:num($('#f-prior').value),note:$('#f-cnote').value.trim()};
+  const data={name,partner:type==='couple'?$('#f-partner').value.trim():'',type,phone:$('#f-phone').value.trim(),fee:num($('#f-cfee').value),start:readDate('fs'),source,prior:num($('#f-prior').value),note:$('#f-cnote').value.trim(),place:$('#f-place .on')?.dataset.v||S.places[0].id};
   if(cid){const c=C(cid);const key=x=>x.wd+'|'+x.time;const oldK=new Set(c.slots.map(key)),newK=new Set(slots.map(key));
     c.past=c.past||[];c.slots.filter(x=>!newK.has(key(x))).forEach(x=>c.past.push({...x,to:t-1}));
     const kept=c.slots.filter(x=>newK.has(key(x)));const added=slots.filter(x=>!oldK.has(key(x))).map(x=>({...x,from:c.start<t?t:undefined}));
@@ -1442,6 +1474,7 @@ A.doRestore=async()=>{let txt=$('#bk-t').value.trim();const f=$('#bk-f').files[0
   try{const data=JSON.parse(await decrypt(txt,$('#bk-ip').value));if(!data||!data.settings||!data.clients)throw 0;S=data;genMax=0;hCache.clear();applyTheme();ensure();closeAll();commit('بکاپ بازگردانی شد')}catch(e){toast('رمز اشتباه است یا فایل بکاپ خراب است')}};
 
 const CH={};
+CH.renamePlace=el=>{const p=PL(el.dataset.id),n=el.value.trim();if(p&&n){p.name=n;save()}};
 CH.setLead=el=>{S.settings.lead=+el.value;save()};
 
 CH.setName=el=>{S.settings.name=el.value.trim();save();render()};
@@ -1510,7 +1543,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&stack.length)closeS
 /* ---------- init ---------- */
 try{const raw=localStorage.getItem(KEY);if(raw)S=JSON.parse(raw)}catch(e){S=null}
 if(!S||!S.settings){S=demo()}
-S.settings={...blank().settings,...S.settings};S.hol=S.hol||{};S.skips=S.skips||{};S.waitlist=S.waitlist||[];S.vacations=S.vacations||[];
+S.settings={...blank().settings,...S.settings};if(!S.places||!S.places.length)S.places=blank().places;S.hol=S.hol||{};S.skips=S.skips||{};S.waitlist=S.waitlist||[];S.vacations=S.vacations||[];
 UI.day=todayD();UI.rep.anchor=todayD();UI.cli.anchor=todayD();
 try{const tb=localStorage.getItem('qab.tab');if(tb==='flow'||tb==='src'){UI.tab='reports';UI.repView=tb}else if(tb&&TABS.some(x=>x[0]===tb))UI.tab=tb}catch(e){}
 UI.calM=todayD();
